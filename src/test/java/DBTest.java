@@ -1,9 +1,13 @@
 import org.junit.jupiter.api.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class DBTest {
     DB db;
+
 
     @BeforeEach
     void setUp() {
@@ -85,20 +89,42 @@ class DBTest {
     @Nested
     class countingValuesTests{
         @Test
-        void count() {
+        void countValuesAfterCommit() {
+            db.begin();
+            db.set("a", "5");
+            db.set("b", "6");
+            db.set("c", "5");
+            db.commit();
+            long x = db.count("5");
+            assertEquals(2, x);
+        }
+        @Test
+        void countSetValuesAfterCommit() {
+            db.begin();
+            db.set("a", "5");
+            db.set("b", "6");
+            db.set("c", "5");
+            db.commit();
+            db.set("d", "5");
+            long x = db.count("5");
+            assertEquals(3, x);
+        }
 
+        @Test
+        void countValuesWithoutTransaction() {
+            db.set("a", "5");
+            db.set("b", "6");
+            db.set("c", "5");
+            db.set("d", "5");
+            long x = db.count("5");
+            assertEquals(3, x);
         }
     }
 
     @Nested
     class committingTransactionsTests {
-        @Test
-        void commit() {
+        boolean isDatabaseEqualChanges() {
             boolean isSame = true;
-            db.begin();
-            db.set("a", "5");
-            db.commit();
-
             for (String key : db.changes.keySet()) {
                 String value = db.changes.get(key);
                 if (!db.database.get(key).equals(value)) {
@@ -106,15 +132,75 @@ class DBTest {
                     break;
                 }
             }
+            return isSame;
+        }
+        @Test
+        void commitWithTransaction() {
+            db.begin();
+            db.set("a", "5");
+            db.commit();
+            boolean isSame = isDatabaseEqualChanges();
+            assertTrue(isSame);
+        }
+
+        @Test
+        void commitWithoutTransaction() {
+            db.set("a", "5");
+            db.commit();
+            boolean isSame = isDatabaseEqualChanges();
             assertTrue(isSame);
         }
     }
 
     @Nested
     class rollbackTests{
+        private static final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        private static final ByteArrayOutputStream errContent = new ByteArrayOutputStream();
+        private static final PrintStream originalErr = System.err;
+        private static final PrintStream originalOut = System.out;
+        @BeforeAll
+        static void setUpStreams() {
+            System.setOut(new PrintStream(outContent));
+            System.setErr(new PrintStream(errContent));
+        }
+
+        @AfterAll
+        static void restoreStreams() {
+            System.setOut(originalOut);
+            System.setErr(originalErr);
+        }
+
         @Test
-        void rollback() {
+        void rollbackWithoutTransaction() {
+            db.set("a", "5");
+            db.rollback();
+            assertEquals("Nothing to rollback", outContent.toString().trim());
+        }
+
+        @Test
+        void rollbackWithOneTransaction() {
+            db.set("a", "7");
+            db.begin();
+            db.set("a", "5");
+            db.rollback();
+            assertNull(outContent.toString().trim());
+        }
+
+        @Test
+        void rollbackWithTwoTransactions() {
+            db.set("a", "7");
+            db.begin();
+            db.set("a", "5");
+            db.begin();
+            db.set("a", "5");
+            db.rollback();
 
         }
+
+        @Test
+        void onlyRollback() {
+            db.rollback();
+        }
+
     }
 }

@@ -99,6 +99,8 @@ public class DB implements DataBase {
 
     @Override
     public void commit() {
+        if (currentTransaction == null)
+            return;
         if (allTransactions.size() > 1)
             for (ArrayList<String> transaction : allTransactions)
                 for (String command : transaction)
@@ -117,6 +119,10 @@ public class DB implements DataBase {
             allTransactions.remove(allTransactions.size()-1);
             resetCurrentTransaction();
             updateTransactions();
+        }
+        else if (currentTransaction != null) {
+            currentTransaction = null;
+
         }
         else {
             System.out.println("Nothing to rollback");
